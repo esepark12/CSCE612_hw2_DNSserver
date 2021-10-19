@@ -3,6 +3,8 @@
 
 #include "pch.h"
 #pragma comment(lib, "ws2_32.lib")
+char* fix_recvBuf;
+int recv_size;
 char* reverseIP(char* host) {
     vector<string> rev_ip(4); //4-byte IP
     bool cont = true;
@@ -40,6 +42,18 @@ int getOffset(char* resp) {
         // compressed; so jump
         // computing the jump offset
         off = (((unsigned char)buf[curPos] & 0x3F) << 8) + (unsigned char)buf[curPos + 1];
+        if (off > 0 && off < 12) {
+            printf("++\tinvalid record: jump into fixed header\n");
+            exit(EXIT_FAILURE);
+        }
+        if (buf + 1 - fix_recvBuf > recv_size + 1) {
+            printf("++\tinvalid record: truncated jump offset\n");
+            exit(EXIT_FAILURE);
+        }
+        if (off > recv_size) {
+            printf("++\tinvalid record: jump beyond packet boundary\n");
+            exit(EXIT_FAILURE);
+        }
     }
     else {
         // uncompressed, read next word
@@ -51,6 +65,11 @@ int printHost(char* recvBuf, int off) {
     //print host
     printf("\t");
     char* curPos = recvBuf + off;
+    if ((unsigned char)curPos[0] >= 0xc0)
+    {
+        printf("++\tinvalid record: jump loop\n");
+        exit(EXIT_FAILURE);
+    }
     int total_size = 0;
     while (true) {
         int size = curPos[0];
@@ -258,7 +277,8 @@ int main(char* argc, char* argv[])
         if (available > 0)
         {
             int recv = recvfrom(sock, recvBuf, MAX_DNS_LEN, 0, (struct sockaddr*)&response, &size);
-
+            fix_recvBuf = recvBuf;
+            recv_size = recv;
             if (recv == SOCKET_ERROR) {
                 printf("Error on %s: %d\n", __FUNCTION__, WSAGetLastError());
                 delete packet;

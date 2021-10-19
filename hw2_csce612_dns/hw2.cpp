@@ -294,6 +294,11 @@ int main(char* argc, char* argv[])
 
             /*Get DNS header*/
             FixedDNSheader* rfdh = (FixedDNSheader*)recvBuf;
+            if (recv_size < sizeof(FixedDNSheader))
+            {
+                printf("++\tinvalid reply: smaller than fixed header\n");
+                return 0;
+            }
             // read fdh->ID and other fields
             printf("  TXID 0x%04x flags 0x%04x questions %d answers %d authority %d additional %d\n", htons(rfdh->ID), 
                 htons(rfdh->flags), (int)htons(rfdh->questions), (int)htons(rfdh->answers),
